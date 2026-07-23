@@ -1,2 +1,2 @@
-anthropic
+anthropic>=0.115.0
 python-dotenv
