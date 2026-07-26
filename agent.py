@@ -37,10 +37,10 @@ MODEL = "claude-sonnet-5"
 TOPICS_FILE = Path("topics.txt")
 REPORTS_DIR = Path("reports")
 
-# Where the agent will find topics.txt inside its container. The agent's
-# tools default to a /workspace working directory, so "topics.txt" in the
-# system prompt below resolves relative to this mount point.
-TOPICS_MOUNT_PATH = "/workspace/topics.txt"
+# Where the agent will find topics.txt inside its container. mount_path is
+# rooted under /mnt/session/uploads/, so "/topics.txt" resolves to
+# /mnt/session/uploads/topics.txt — the exact path given in SYSTEM_PROMPT.
+TOPICS_MOUNT_PATH = "/topics.txt"
 
 # Anything the agent writes under /mnt/session/outputs/ is what the Files
 # API can list and download after the session ends — it's the *only*
@@ -62,7 +62,7 @@ STATE_FILE = Path(".agent_state.json")
 #     comment above for why.
 SYSTEM_PROMPT = """You are a Personalized Topic Tracker background agent. Your job is to produce a daily research digest based on the user's tracked topics.
 
-Read the file topics.txt from the working directory — each line is one topic.
+Read the file at /mnt/session/uploads/topics.txt — each line is one topic.
 
 You have access to four tools: file read, file write, web search, and web fetch. Use them as needed.
 
@@ -217,7 +217,7 @@ def _print_event(event) -> None:
 
     elif etype == "agent.tool_result":
         content = getattr(event, "content", None)
-        text = json.dumps(content) if content is not None else "<no content field>"
+        text = str(content) if content is not None else "<no content field>"
         print(f"[tool_result] {text[:300]}")
 
     elif etype == "session.error":
@@ -294,6 +294,8 @@ def download_reports(client: anthropic.Anthropic, session_id: str) -> None:
     if not files:
         print("No output files found — check the session trace for errors.")
         return
+
+    files = [f for f in files if f.filename.endswith(".md")]
 
     for f in files:
         # Sanitize with basename: the filename comes from the sandbox and
